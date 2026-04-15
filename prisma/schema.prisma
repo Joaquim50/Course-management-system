@@ -1,0 +1,68 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       String    @id @default(uuid())
+  name     String
+  email    String    @unique
+  password String
+  role     String    // 'ADMIN' or 'STUDENT'
+  Attempts Attempt[]
+}
+
+model Course {
+  id          String    @id @default(uuid())
+  title       String
+  description String
+  materialUrl String?
+  Tests       Test[]
+  Attempts    Attempt[]
+}
+
+model Test {
+  id        String     @id @default(uuid())
+  courseId  String
+  Course    Course     @relation(fields: [courseId], references: [id])
+  type      String     // 'PRETEST' or 'EXAM'
+  Questions Question[]
+  Attempts  Attempt[]
+}
+
+model Question {
+  id            String @id @default(uuid())
+  testId        String
+  Test          Test   @relation(fields: [testId], references: [id])
+  questionText  String
+  options       String // JSON string of options array
+  correctAnswer String
+}
+
+model Attempt {
+  id            String          @id @default(uuid())
+  userId        String
+  User          User            @relation(fields: [userId], references: [id])
+  testId        String
+  Test          Test            @relation(fields: [testId], references: [id])
+  courseId      String
+  Course        Course          @relation(fields: [courseId], references: [id])
+  score         Int
+  attemptNumber Int
+  type          String          // 'PRETEST' or 'EXAM'
+  Answers       AttemptAnswer[]
+}
+
+model AttemptAnswer {
+  id             String  @id @default(uuid())
+  attemptId      String
+  Attempt        Attempt @relation(fields: [attemptId], references: [id])
+  questionText   String
+  options        String  // JSON string
+  selectedOption String
+  correctOption  String
+  isCorrect      Boolean
+}
