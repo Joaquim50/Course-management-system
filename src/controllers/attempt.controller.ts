@@ -126,3 +126,15 @@ export const getAllAttempts = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+export const deleteAttempt = async (req: AuthRequest, res: Response) => {
+    try {
+        const id = req.params.id as string;
+
+        await prisma.attemptAnswer.deleteMany({ where: { attemptId: id } });
+        await prisma.attempt.delete({ where: { id } });
+
+        res.json({ message: 'Attempt record and answers deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete attempt' });
+    }
+};

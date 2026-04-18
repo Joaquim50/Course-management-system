@@ -67,3 +67,44 @@ export const getStudents = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const updateStudent = async (req: Request, res: Response) => {
+    try {
+        const id = req.params.id as string;
+        const { name, email, password } = req.body;
+
+        const data: any = {};
+        if (name) data.name = name;
+        if (email) data.email = email;
+        if (password) {
+            data.password = await bcrypt.hash(password, 10);
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: id as string },
+            data,
+            select: { id: true, name: true, email: true, role: true }
+        });
+
+        res.json(updated);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+};
+
+export const deleteStudent = async (req: Request, res: Response) => {
+    try {
+        const id = req.params.id as string;
+
+        // Note: Prisma will handle deletion of attempts if configured in schema, 
+        // or we do it manually if needed. In our current schema, Attempt has a relation.
+        // We'll delete attempts first to be safe if no cascade is set.
+        await prisma.attempt.deleteMany({ where: { userId: id as string } });
+        await prisma.user.delete({ where: { id: id as string } });
+
+        res.json({ message: 'User and all associated data deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete user' });
+    }
+};

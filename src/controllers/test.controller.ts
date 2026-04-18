@@ -72,3 +72,53 @@ export const getTestsByCourseId = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+export const updateTest = async (req: AuthRequest, res: Response) => {
+    try {
+        const id = req.params.id as string;
+        const { type, questions } = req.body;
+
+        const existing = await prisma.test.findUnique({ where: { id } });
+        if (!existing) return res.status(404).json({ error: 'Test not found' });
+
+        // Atomic update: Delete old questions and create new ones
+        const updated = await prisma.test.update({
+            where: { id },
+            data: {
+                type: type || existing.type,
+                Questions: {
+                    deleteMany: {}, // Wipe existing questions
+                    create: questions.map((q: any) => ({
+                        questionText: q.questionText,
+                        options: JSON.stringify(q.options),
+                        correctAnswer: String(q.correctAnswer)
+                    }))
+                }
+            },
+            include: { Questions: true }
+        });
+
+        res.json(updated);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to update test' });
+    }
+};
+
+export const deleteTest = async (req: AuthRequest, res: Response) => {
+    try {
+        const id = req.params.id as string;
+
+        // Note: Prisma needs explicit cleanup if no cascade is in schema
+        await prisma.attemptAnswer.deleteMany({
+            where: { Attempt: { testId: id } }
+        });
+        await prisma.attempt.deleteMany({ where: { testId: id } });
+        await prisma.question.deleteMany({ where: { testId: id } });
+        await prisma.test.delete({ where: { id } });
+
+        res.json({ message: 'Test and associated questions/attempts deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to delete test' });
+    }
+};
