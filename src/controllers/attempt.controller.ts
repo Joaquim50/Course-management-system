@@ -14,32 +14,43 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
 
         if (!test) return res.status(404).json({ error: 'Test not found' });
 
-        if (test.type === 'EXAM') {
-            const count = await prisma.attempt.count({
-                where: { userId, testId }
-            });
-            if (count >= 5) {
-                return res.status(400).json({ error: 'Maximum attempts reached for this exam' });
-            }
+        const count = await prisma.attempt.count({
+            where: { userId, testId }
+        });
+
+        if (test.type === 'EXAM' && count >= 5) {
+            return res.status(400).json({ error: 'Maximum attempts reached for this exam' });
+        }
+
+        if (test.type === 'PRETEST' && count >= 1) {
+            return res.status(400).json({ error: 'The pre-test is a one-time assessment and cannot be retaken.' });
         }
 
         let score = 0;
         const attemptAnswersData: any[] = [];
 
         for (const answer of answers) {
-            const question = test.Questions.find(q => q.id === answer.questionId);
-            if (question) {
-                const isCorrect = question.correctAnswer === answer.selectedOption;
-                if (isCorrect) score++;
+            // Attempt to find the question in the DB for verification/score accuracy
+            const question = test.Questions.find(q => 
+                (answer.questionId && q.id === answer.questionId) || 
+                (answer.questionText && q.questionText === answer.questionText)
+            );
 
-                attemptAnswersData.push({
-                    questionText: question.questionText,
-                    options: question.options,
-                    selectedOption: answer.selectedOption || '',
-                    correctOption: question.correctAnswer,
-                    isCorrect
-                });
-            }
+            // Use DB data if found, otherwise trust payload for audit/standalone tests
+            const correctAnswer = question ? question.correctAnswer : (answer.correctAnswer || answer.correctOption);
+            const options = question ? question.options : (typeof answer.options === 'string' ? answer.options : JSON.stringify(answer.options || []));
+            const questionText = question ? question.questionText : (answer.questionText || 'Unknown Question');
+
+            const isCorrect = String(correctAnswer) === String(answer.selectedOption);
+            if (isCorrect) score++;
+
+            attemptAnswersData.push({
+                questionText,
+                options,
+                selectedOption: String(answer.selectedOption || ''),
+                correctOption: String(correctAnswer || ''),
+                isCorrect
+            });
         }
 
         const prevAttempts = await prisma.attempt.count({ where: { userId, testId } });
@@ -49,7 +60,7 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
                 userId,
                 testId,
                 courseId: test.courseId,
-                score,
+                score: Math.round((score / (answers.length || 1)) * 100), // Store percentage score
                 attemptNumber: prevAttempts + 1,
                 type: test.type,
                 Answers: {
@@ -94,6 +105,23 @@ export const getAttemptById = async (req: AuthRequest, res: Response) => {
         }
 
         res.json(attempt);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getAllAttempts = async (req: AuthRequest, res: Response) => {
+    try {
+        const attempts = await prisma.attempt.findMany({
+            orderBy: { createdAt: 'desc' },
+            include: { 
+                Test: { include: { Course: true } },
+                User: {
+                    select: { name: true, email: true }
+                }
+            }
+        });
+        res.json(attempts);
     } catch (err) {
         res.status(500).json({ error: 'Internal Server Error' });
     }

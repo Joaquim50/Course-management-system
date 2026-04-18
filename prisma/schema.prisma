@@ -12,16 +12,24 @@ model User {
   email    String    @unique
   password String
   role     String    // 'ADMIN' or 'STUDENT'
-  Attempts Attempt[]
+  Attempts  Attempt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Course {
-  id          String    @id @default(uuid())
-  title       String
-  description String
-  materialUrl String?
-  Tests       Test[]
-  Attempts    Attempt[]
+  id                 String    @id @default(uuid())
+  title              String
+  description        String
+  thumbnailUrl       String?
+  learningObjectives String?   // JSON string of bullet points
+  duration           String?
+  level              String?
+  materialUrl        String?
+  Tests              Test[]
+  Attempts           Attempt[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 model Test {
@@ -31,6 +39,8 @@ model Test {
   type      String     // 'PRETEST' or 'EXAM'
   Questions Question[]
   Attempts  Attempt[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Question {
@@ -54,6 +64,8 @@ model Attempt {
   attemptNumber Int
   type          String          // 'PRETEST' or 'EXAM'
   Answers       AttemptAnswer[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 model AttemptAnswer {

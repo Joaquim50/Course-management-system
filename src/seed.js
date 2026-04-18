@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function main() {
@@ -6,7 +6,7 @@ async function main() {
     data: {
       name: 'Admin',
       email: 'admin@lms.local',
-      password: 'admin', // In a real app we'd hash this, but I'll stick to the existing pattern
+      password: 'admin',
       role: 'ADMIN'
     }
   });

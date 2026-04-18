@@ -55,3 +55,15 @@ export const login = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const getStudents = async (req: Request, res: Response) => {
+    try {
+        const students = await prisma.user.findMany({
+            where: { role: 'STUDENT' },
+            select: { id: true, name: true, email: true, createdAt: true }
+        });
+        res.json(students);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
