@@ -109,17 +109,59 @@ export const getAttemptById = async (req: AuthRequest, res: Response) => {
 
 export const getAllAttempts = async (req: AuthRequest, res: Response) => {
     try {
-        const attempts = await prisma.attempt.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: { 
-                Test: { include: { Course: true } },
-                Answers: true,
-                User: {
-                    select: { name: true, email: true }
+        const courseId = req.query.courseId as string;
+        const search = req.query.search as string || '';
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        const where: any = {};
+        if (courseId) {
+            where.courseId = courseId;
+        }
+
+        if (search) {
+            where.User = {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } }
+                ]
+            };
+        }
+
+        const [attempts, total] = await Promise.all([
+            prisma.attempt.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: { 
+                    Test: { include: { Course: true } },
+                    Answers: true,
+                    User: {
+                        select: { name: true, email: true }
+                    }
                 }
+            }),
+            prisma.attempt.count({ where })
+        ]);
+
+        // Legacy support: If no pagination requested, we could return just array, 
+        // but for admin panel it's better to always have the structure if query params exist.
+        // If someone calls /attempts/all without any params, we return the data as before for safety.
+        if (!req.query.page && !req.query.limit && !req.query.courseId) {
+            return res.json(attempts);
+        }
+
+        res.json({
+            data: attempts,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
             }
         });
-        res.json(attempts);
     } catch (err) {
         console.error('Get All Attempts Error:', err);
         res.status(500).json({ error: 'Failed to fetch all attempts. Please try again later.' });

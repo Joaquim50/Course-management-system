@@ -46,6 +46,9 @@ export const createCourse = async (req: AuthRequest, res: Response) => {
 export const getCourses = async (req: Request, res: Response) => {
     try {
         const search = (req.query.search as string) || '';
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
         
         const where = {
             OR: [
@@ -54,12 +57,30 @@ export const getCourses = async (req: Request, res: Response) => {
             ]
         };
 
-        const courses = await prisma.course.findMany({
-            where,
-            orderBy: { createdAt: 'desc' }
-        });
+        const [courses, total] = await Promise.all([
+            prisma.course.findMany({
+                where,
+                skip: req.query.page ? skip : undefined,
+                take: req.query.limit ? limit : undefined,
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.course.count({ where })
+        ]);
         
-        res.json(courses);
+        // Legacy support: If no pagination requested, return just the array
+        if (!req.query.page && !req.query.limit) {
+            return res.json(courses);
+        }
+
+        res.json({
+            data: courses,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.error('Get Courses Error:', err);
         res.status(500).json({ error: 'Failed to fetch courses. Please try again later.' });

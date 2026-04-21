@@ -64,11 +64,47 @@ export const login = async (req: Request, res: Response) => {
 
 export const getStudents = async (req: Request, res: Response) => {
     try {
-        const students = await prisma.user.findMany({
-            where: { role: 'STUDENT' },
-            select: { id: true, name: true, email: true, createdAt: true }
+        const search = (req.query.search as string) || '';
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const skip = (page - 1) * limit;
+
+        const where: any = {
+            role: 'STUDENT'
+        };
+
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+
+        const [students, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                skip: req.query.page ? skip : undefined,
+                take: req.query.limit ? limit : undefined,
+                select: { id: true, name: true, email: true, createdAt: true },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.user.count({ where })
+        ]);
+
+        // Legacy support: If no pagination requested, return just the array
+        if (!req.query.page && !req.query.limit) {
+            return res.json(students);
+        }
+
+        res.json({
+            data: students,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit)
+            }
         });
-        res.json(students);
     } catch (err) {
         console.error('Get Students Error:', err);
         res.status(500).json({ error: 'Failed to fetch students. Please try again later.' });
