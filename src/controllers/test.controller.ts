@@ -6,7 +6,17 @@ export const createTest = async (req: AuthRequest, res: Response) => {
     try {
         const { courseId, type, questions } = req.body;
         if (!courseId || !type || !questions) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            return res.status(400).json({ error: 'Missing required fields.' });
+        }
+
+        // Enforce: max 1 Pretest + 1 Exam per course
+        const existing = await prisma.test.findFirst({
+            where: { courseId, type }
+        });
+        if (existing) {
+            return res.status(409).json({
+                error: `This course already has a ${type === 'PRETEST' ? 'Pretest' : 'Exam'}. Please edit or delete the existing one first.`
+            });
         }
 
         const test = await prisma.test.create({
@@ -26,7 +36,8 @@ export const createTest = async (req: AuthRequest, res: Response) => {
 
         res.status(201).json(test);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Create Test Error:', err);
+        res.status(500).json({ error: 'Failed to create test. Please check your input and try again.' });
     }
 };
 
@@ -71,7 +82,8 @@ export const getTestsByCourseId = async (req: AuthRequest, res: Response) => {
 
         res.json(tests);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Tests Error:', err);
+        res.status(500).json({ error: 'Failed to fetch tests for this course. Please try again later.' });
     }
 };
 export const updateTest = async (req: AuthRequest, res: Response) => {

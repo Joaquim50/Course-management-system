@@ -27,7 +27,8 @@ export const register = async (req: Request, res: Response) => {
 
         res.status(201).json({ message: 'User registered successfully', userId: user.id });
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Register Error:', err);
+        res.status(500).json({ error: 'Registration failed. Please try again later.' });
     }
 };
 
@@ -56,7 +57,8 @@ export const login = async (req: Request, res: Response) => {
 
         res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Login Error:', err);
+        res.status(500).json({ error: 'Login failed. Please try again later.' });
     }
 };
 
@@ -68,7 +70,8 @@ export const getStudents = async (req: Request, res: Response) => {
         });
         res.json(students);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Students Error:', err);
+        res.status(500).json({ error: 'Failed to fetch students. Please try again later.' });
     }
 };
 
@@ -79,7 +82,19 @@ export const updateStudent = async (req: Request, res: Response) => {
 
         const data: any = {};
         if (name) data.name = name;
-        if (email) data.email = email;
+        if (email) {
+            // Check if email is already taken by another user
+            const existing = await prisma.user.findFirst({
+                where: { 
+                    email,
+                    NOT: { id: id as string }
+                }
+            });
+            if (existing) {
+                return res.status(400).json({ error: 'Email already in use by another student.' });
+            }
+            data.email = email;
+        }
         if (password) {
             data.password = await bcrypt.hash(password, 10);
         }
@@ -101,14 +116,29 @@ export const deleteStudent = async (req: Request, res: Response) => {
     try {
         const id = req.params.id as string;
 
-        // Note: Prisma will handle deletion of attempts if configured in schema, 
-        // or we do it manually if needed. In our current schema, Attempt has a relation.
-        // We'll delete attempts first to be safe if no cascade is set.
-        await prisma.attempt.deleteMany({ where: { userId: id as string } });
-        await prisma.user.delete({ where: { id: id as string } });
+        const user = await prisma.user.findUnique({
+            where: { id },
+            include: {
+                Attempts: { select: { id: true } }
+            }
+        });
 
-        res.json({ message: 'User and all associated data deleted successfully' });
+        if (!user) {
+            return res.status(404).json({ error: 'Student not found.' });
+        }
+
+        // Block deletion if student has test attempts
+        if (user.Attempts.length > 0) {
+            return res.status(409).json({
+                error: `Cannot delete this student because they have ${user.Attempts.length} test attempt(s) on record. Please remove their attempts first.`
+            });
+        }
+
+        await prisma.user.delete({ where: { id } });
+
+        res.json({ message: 'Student deleted successfully.' });
     } catch (err) {
-        res.status(500).json({ error: 'Failed to delete user' });
+        console.error('Delete Student Error:', err);
+        res.status(500).json({ error: 'Failed to delete student. Please try again.' });
     }
 };

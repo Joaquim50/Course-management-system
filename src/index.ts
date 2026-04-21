@@ -13,7 +13,14 @@ import dashboardRoutes from './routes/dashboard.routes';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 app.use(compression()); // Compress all responses
 app.use(morgan('dev')); // Log requests for performance monitoring
 app.use(express.json());
