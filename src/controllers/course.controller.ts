@@ -45,11 +45,56 @@ export const createCourse = async (req: AuthRequest, res: Response) => {
 
 export const getCourses = async (req: Request, res: Response) => {
     try {
+        const search = (req.query.search as string) || '';
+        
+        const where = {
+            OR: [
+                { title: { contains: search, mode: 'insensitive' as const } },
+                { description: { contains: search, mode: 'insensitive' as const } }
+            ]
+        };
+
         const courses = await prisma.course.findMany({
+            where,
             orderBy: { createdAt: 'desc' }
         });
+        
         res.json(courses);
     } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getMyEnrolledCourses = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user!.id;
+        const search = (req.query.search as string) || '';
+
+        // Get unique course IDs from attempts
+        const attempts = await prisma.attempt.findMany({
+            where: { userId },
+            distinct: ['courseId'],
+            select: { courseId: true }
+        });
+        const enrolledIds = attempts.map(a => a.courseId);
+
+        const where: any = {
+            id: { in: enrolledIds },
+            OR: [
+                { title: { contains: search, mode: 'insensitive' as const } },
+                { description: { contains: search, mode: 'insensitive' as const } }
+            ]
+        };
+
+        const courses = await prisma.course.findMany({
+            where,
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json(courses);
+    } catch (err) {
+        console.error(err);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -63,9 +108,9 @@ export const getCourseById = async (req: AuthRequest, res: Response) => {
                 Tests: {
                     where: { type: 'PRETEST' },
                     include: {
-                        Attempts: {
-                            where: { userId: req.user!.id }
-                        }
+                        Attempts: req.user ? {
+                            where: { userId: req.user.id }
+                        } : undefined
                     }
                 }
             }
@@ -82,16 +127,19 @@ export const getCourseById = async (req: AuthRequest, res: Response) => {
         } else if (req.user?.role === 'STUDENT') {
             const pretest = course.Tests[0];
             if (pretest) {
-                const pretestAttempt = pretest.Attempts[0];
+                const pretestAttempt = (pretest as any).Attempts?.[0];
                 if (pretestAttempt) {
                     canAccessMaterial = true;
                 }
             } else {
                 canAccessMaterial = true;
             }
+        } else if (!req.user) {
+            // Guest users can only see material if there is no pretest required
+            canAccessMaterial = course.Tests.length === 0;
         }
 
-        const { Tests, ...courseData } = course; // Remove included Tests from response
+        const { Tests, ...courseData } = course;
 
         res.json({
             ...courseData,
