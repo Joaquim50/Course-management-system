@@ -38,8 +38,8 @@ export const createCourse = async (req: AuthRequest, res: Response) => {
 
         res.status(201).json(course);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Create Course Error:', err);
+        res.status(500).json({ error: 'Failed to create course. Please check your input and try again.' });
     }
 };
 
@@ -61,8 +61,8 @@ export const getCourses = async (req: Request, res: Response) => {
         
         res.json(courses);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Courses Error:', err);
+        res.status(500).json({ error: 'Failed to fetch courses. Please try again later.' });
     }
 };
 
@@ -94,8 +94,8 @@ export const getMyEnrolledCourses = async (req: AuthRequest, res: Response) => {
 
         res.json(courses);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Enrolled Courses Error:', err);
+        res.status(500).json({ error: 'Failed to fetch your enrolled courses. Please try again later.' });
     }
 };
 
@@ -147,7 +147,8 @@ export const getCourseById = async (req: AuthRequest, res: Response) => {
         });
 
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Course By Id Error:', err);
+        res.status(500).json({ error: 'Failed to load course details. Please try again later.' });
     }
 };
 
@@ -198,8 +199,8 @@ export const updateCourse = async (req: AuthRequest, res: Response) => {
 
         res.json(updated);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Update Course Error:', err);
+        res.status(500).json({ error: 'Failed to update course. Please check your input and try again.' });
     }
 };
 
@@ -207,26 +208,48 @@ export const deleteCourse = async (req: AuthRequest, res: Response) => {
     try {
         const id = req.params.id as string;
 
-        const existing = await prisma.course.findUnique({ where: { id } });
-        if (!existing) return res.status(404).json({ error: 'Course not found' });
+        const existing = await prisma.course.findUnique({
+            where: { id },
+            include: {
+                Tests: { select: { id: true } },
+                Attempts: { select: { id: true } },
+            }
+        });
 
-        // Delete thumbnail
+        if (!existing) {
+            return res.status(404).json({ error: 'Course not found.' });
+        }
+
+        // Block deletion if course has tests
+        if (existing.Tests.length > 0) {
+            return res.status(409).json({
+                error: `Cannot delete this course because it has ${existing.Tests.length} test(s) associated with it. Please delete all tests for this course first.`
+            });
+        }
+
+        // Block deletion if course has student attempts
+        if (existing.Attempts.length > 0) {
+            return res.status(409).json({
+                error: `Cannot delete this course because it has ${existing.Attempts.length} student attempt(s) recorded. Please remove all attempts first.`
+            });
+        }
+
+        // Safe to delete — clean up files
         if (existing.thumbnailUrl && existing.thumbnailUrl.startsWith('/uploads/')) {
             const filePath = path.join(process.cwd(), existing.thumbnailUrl.replace(/^\//, ''));
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
 
-        // Delete material
         if (existing.materialUrl && existing.materialUrl.startsWith('/uploads/')) {
             const filePath = path.join(process.cwd(), existing.materialUrl.replace(/^\//, ''));
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
 
-        await prisma.course.delete({ where: { id: id as string } });
+        await prisma.course.delete({ where: { id } });
 
-        res.json({ message: 'Course and materials deleted successfully' });
+        res.json({ message: 'Course and materials deleted successfully.' });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Delete Course Error:', err);
+        res.status(500).json({ error: 'Failed to delete course. Please try again later.' });
     }
 };

@@ -12,14 +12,14 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
             include: { Questions: true }
         });
 
-        if (!test) return res.status(404).json({ error: 'Test not found' });
+        if (!test) return res.status(404).json({ error: 'Test not found.' });
 
         const count = await prisma.attempt.count({
             where: { userId, testId }
         });
 
         if (test.type === 'EXAM' && count >= 5) {
-            return res.status(400).json({ error: 'Maximum attempts reached for this exam' });
+            return res.status(400).json({ error: 'Maximum attempts reached for this exam.' });
         }
 
         if (test.type === 'PRETEST' && count >= 1) {
@@ -55,7 +55,7 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
                 userId,
                 testId,
                 courseId: test.courseId,
-                score: Math.round((score / (test.Questions.length || 1)) * 100), // Use test.Questions.length for accuracy
+                score: Math.round((score / (test.Questions.length || 1)) * 100),
                 attemptNumber: count + 1,
                 type: test.type,
                 Answers: {
@@ -67,8 +67,8 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
 
         res.status(201).json(attempt);
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Submit Test Error:', err);
+        res.status(500).json({ error: 'Failed to submit your test. Please try again.' });
     }
 };
 
@@ -82,7 +82,8 @@ export const getAttemptsByCourse = async (req: AuthRequest, res: Response) => {
         });
         res.json(attempts);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Attempts By Course Error:', err);
+        res.status(500).json({ error: 'Failed to fetch your attempts for this course.' });
     }
 };
 
@@ -94,14 +95,15 @@ export const getAttemptById = async (req: AuthRequest, res: Response) => {
             include: { Answers: true, Test: true }
         });
 
-        if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+        if (!attempt) return res.status(404).json({ error: 'Attempt not found.' });
         if (attempt.userId !== req.user!.id && req.user!.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Forbidden' });
+            return res.status(403).json({ error: 'You do not have permission to view this attempt.' });
         }
 
         res.json(attempt);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get Attempt By Id Error:', err);
+        res.status(500).json({ error: 'Failed to load attempt details.' });
     }
 };
 
@@ -119,7 +121,8 @@ export const getAllAttempts = async (req: AuthRequest, res: Response) => {
         });
         res.json(attempts);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get All Attempts Error:', err);
+        res.status(500).json({ error: 'Failed to fetch all attempts. Please try again later.' });
     }
 };
 
@@ -135,9 +138,11 @@ export const getMyAttempts = async (req: AuthRequest, res: Response) => {
         });
         res.json(attempts);
     } catch (err) {
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('Get My Attempts Error:', err);
+        res.status(500).json({ error: 'Failed to fetch your attempt history.' });
     }
 };
+
 export const deleteAttempt = async (req: AuthRequest, res: Response) => {
     try {
         const id = req.params.id as string;
@@ -145,8 +150,9 @@ export const deleteAttempt = async (req: AuthRequest, res: Response) => {
         await prisma.attemptAnswer.deleteMany({ where: { attemptId: id } });
         await prisma.attempt.delete({ where: { id } });
 
-        res.json({ message: 'Attempt record and answers deleted successfully' });
+        res.json({ message: 'Attempt record and answers deleted successfully.' });
     } catch (err) {
-        res.status(500).json({ error: 'Failed to delete attempt' });
+        console.error('Delete Attempt Error:', err);
+        res.status(500).json({ error: 'Failed to delete attempt. Please try again.' });
     }
 };
