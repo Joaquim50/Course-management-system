@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import compression from 'compression';
+import morgan from 'morgan';
 import authRoutes from './routes/auth.routes';
 import courseRoutes from './routes/course.routes';
 import testRoutes from './routes/test.routes';
@@ -12,6 +14,8 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
+app.use(compression()); // Compress all responses
+app.use(morgan('dev')); // Log requests for performance monitoring
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 

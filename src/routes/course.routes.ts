@@ -5,8 +5,8 @@ import { upload } from '../middlewares/upload.middleware';
 
 const router = Router();
 
-router.get('/', authenticate, getCourses);
-router.get('/:id', authenticate, getCourseById);
+router.get('/', getCourses);
+router.get('/:id', getCourseById);
 
 const courseUpload = upload.fields([
     { name: 'thumbnail', maxCount: 1 },

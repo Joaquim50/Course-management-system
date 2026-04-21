@@ -29,39 +29,34 @@ export const submitTest = async (req: AuthRequest, res: Response) => {
         let score = 0;
         const attemptAnswersData: any[] = [];
 
-        for (const answer of answers) {
-            // Attempt to find the question in the DB for verification/score accuracy
-            const question = test.Questions.find(q => 
-                (answer.questionId && q.id === answer.questionId) || 
-                (answer.questionText && q.questionText === answer.questionText)
+        // Iterate over ALL questions in the test to ensure unselected options are marked as wrong
+        for (const question of test.Questions) {
+            const studentAnswer = answers.find((a: any) => 
+                (a.questionId && a.questionId === question.id) || 
+                (a.questionText && a.questionText === question.questionText)
             );
 
-            // Use DB data if found, otherwise trust payload for audit/standalone tests
-            const correctAnswer = question ? question.correctAnswer : (answer.correctAnswer || answer.correctOption);
-            const options = question ? question.options : (typeof answer.options === 'string' ? answer.options : JSON.stringify(answer.options || []));
-            const questionText = question ? question.questionText : (answer.questionText || 'Unknown Question');
-
-            const isCorrect = String(correctAnswer) === String(answer.selectedOption);
+            const selectedOption = studentAnswer ? String(studentAnswer.selectedOption || '') : '';
+            const isCorrect = String(question.correctAnswer) === selectedOption && selectedOption !== '';
+            
             if (isCorrect) score++;
 
             attemptAnswersData.push({
-                questionText,
-                options,
-                selectedOption: String(answer.selectedOption || ''),
-                correctOption: String(correctAnswer || ''),
+                questionText: question.questionText,
+                options: question.options,
+                selectedOption,
+                correctOption: String(question.correctAnswer || ''),
                 isCorrect
             });
         }
-
-        const prevAttempts = await prisma.attempt.count({ where: { userId, testId } });
 
         const attempt = await prisma.attempt.create({
             data: {
                 userId,
                 testId,
                 courseId: test.courseId,
-                score: Math.round((score / (answers.length || 1)) * 100), // Store percentage score
-                attemptNumber: prevAttempts + 1,
+                score: Math.round((score / (test.Questions.length || 1)) * 100), // Use test.Questions.length for accuracy
+                attemptNumber: count + 1,
                 type: test.type,
                 Answers: {
                     create: attemptAnswersData
@@ -83,7 +78,7 @@ export const getAttemptsByCourse = async (req: AuthRequest, res: Response) => {
         const attempts = await prisma.attempt.findMany({
             where: { userId: req.user!.id, courseId },
             orderBy: { attemptNumber: 'desc' },
-            include: { Test: true }
+            include: { Test: true, Answers: true }
         });
         res.json(attempts);
     } catch (err) {
@@ -116,9 +111,26 @@ export const getAllAttempts = async (req: AuthRequest, res: Response) => {
             orderBy: { createdAt: 'desc' },
             include: { 
                 Test: { include: { Course: true } },
+                Answers: true,
                 User: {
                     select: { name: true, email: true }
                 }
+            }
+        });
+        res.json(attempts);
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const getMyAttempts = async (req: AuthRequest, res: Response) => {
+    try {
+        const attempts = await prisma.attempt.findMany({
+            where: { userId: req.user!.id },
+            orderBy: { createdAt: 'desc' },
+            include: { 
+                Answers: true,
+                Test: { include: { Course: true } }
             }
         });
         res.json(attempts);

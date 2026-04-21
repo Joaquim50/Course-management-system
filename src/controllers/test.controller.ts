@@ -33,6 +33,7 @@ export const createTest = async (req: AuthRequest, res: Response) => {
 export const getTestsByCourseId = async (req: AuthRequest, res: Response) => {
     try {
         const courseId = req.params.courseId as string;
+        const isAdmin = req.user?.role === 'ADMIN';
         const tests = await prisma.test.findMany({
             where: { courseId },
             include: {
@@ -40,7 +41,8 @@ export const getTestsByCourseId = async (req: AuthRequest, res: Response) => {
                     select: {
                         id: true,
                         questionText: true,
-                        options: true
+                        options: true,
+                        correctAnswer: isAdmin // Only include for admins
                     }
                 }
             }

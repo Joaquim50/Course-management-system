@@ -4,7 +4,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 
 export const getDashboardStats = async (req: AuthRequest, res: Response) => {
     try {
-        const [studentCount, courseCount, testCount, attemptCount, recentAttempts] = await Promise.all([
+        const [studentCount, courseCount, testCount, attemptCount, recentAttempts, totalScore] = await Promise.all([
             prisma.user.count({ where: { role: 'STUDENT' } }),
             prisma.course.count(),
             prisma.test.count(),
@@ -20,12 +20,11 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
                         } 
                     }
                 }
+            }),
+            prisma.attempt.aggregate({
+                _avg: { score: true }
             })
         ]);
-
-        const totalScore = await prisma.attempt.aggregate({
-            _avg: { score: true }
-        });
 
         res.json({
             stats: {
